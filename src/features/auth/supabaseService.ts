@@ -122,15 +122,10 @@ export const supabaseAuthService = {
     if (error) throw error;
     const result = await WebBrowser.openAuthSessionAsync(data.url, redirectTo);
     if (result.type !== 'success') throw new Error('소셜 로그인이 취소되었습니다.');
-    const params = getOAuthParams(result.url);
-    const accessToken = params.get('access_token');
-    const refreshToken = params.get('refresh_token');
-    if (!accessToken || !refreshToken) throw new Error('소셜 로그인 세션을 확인하지 못했습니다.');
-    const { error: sessionError } = await getSupabaseClient().auth.setSession({ access_token: accessToken, refresh_token: refreshToken });
-    if (sessionError) throw sessionError;
-    const user = await loadCurrentUser();
-    if (!user) throw new Error('소셜 로그인 프로필을 불러오지 못했습니다.');
-    return user;
+    return completeOAuthCallback(result.url);
+  },
+  async completeOAuthCallback(url: string) {
+    return completeOAuthCallback(url);
   },
   async connect(partnerCode: string) {
     const { error } = await getSupabaseClient().rpc('connect_with_code', {
@@ -206,7 +201,40 @@ export function validatePassword(password: string) {
 
 function getOAuthParams(url: string) {
   const parsed = new URL(url);
-  return new URLSearchParams(parsed.hash.startsWith('#') ? parsed.hash.slice(1) : parsed.search);
+  const params = new URLSearchParams(parsed.search);
+  const hashParams = new URLSearchParams(parsed.hash.startsWith('#') ? parsed.hash.slice(1) : parsed.hash);
+  hashParams.forEach((value, key) => params.set(key, value));
+  return params;
+}
+
+async function completeOAuthCallback(url: string) {
+  const supabase = getSupabaseClient();
+  const params = getOAuthParams(url);
+  const oauthError = params.get('error_description') ?? params.get('error');
+  if (oauthError) throw new Error(oauthError);
+
+  const accessToken = params.get('access_token');
+  const refreshToken = params.get('refresh_token');
+  const code = params.get('code');
+
+  if (accessToken && refreshToken) {
+    const { error } = await supabase.auth.setSession({
+      access_token: accessToken,
+      refresh_token: refreshToken,
+    });
+    if (error) throw error;
+  } else if (code) {
+    const { error } = await supabase.auth.exchangeCodeForSession(code);
+    if (error) throw error;
+  } else {
+    const { data, error } = await supabase.auth.getSession();
+    if (error) throw error;
+    if (!data.session) throw new Error('소셜 로그인 세션을 확인하지 못했습니다.');
+  }
+
+  const user = await loadCurrentUser();
+  if (!user) throw new Error('소셜 로그인 프로필을 불러오지 못했습니다.');
+  return user;
 }
 
 function getOAuthRedirectUrl() {

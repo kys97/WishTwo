@@ -15,6 +15,7 @@ interface AuthContextValue {
   verifySignUpCode: (email: string, token: string) => Promise<AuthUser>;
   resendSignUpCode: (email: string) => Promise<void>;
   signInWithSocial: (provider: SocialAuthProvider) => Promise<AuthUser>;
+  completeOAuthCallback: (url: string) => Promise<AuthUser>;
   completeSocialProfile: (input: Pick<UpdateProfileInput, 'name' | 'birthDate' | 'gender'>) => Promise<AuthUser>;
   connectCouple: (partnerCode: string) => Promise<AuthUser>;
   updateProfile: (input: UpdateProfileInput) => Promise<AuthUser>;
@@ -83,6 +84,12 @@ export function AuthProvider({ children }: PropsWithChildren) {
     },
     async signInWithSocial(provider) {
       const nextUser = await supabaseAuthService.signInWithSocial(provider);
+      setUser(nextUser);
+      setAuthenticated(true);
+      return nextUser;
+    },
+    async completeOAuthCallback(url) {
+      const nextUser = await supabaseAuthService.completeOAuthCallback(url);
       setUser(nextUser);
       setAuthenticated(true);
       return nextUser;

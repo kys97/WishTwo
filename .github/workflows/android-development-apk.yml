@@ -1,19 +1,18 @@
-name: Build Android APK
+name: Build Android Development APK
 
 on:
-  push:
   workflow_dispatch:
 
 permissions:
   contents: read
 
 concurrency:
-  group: android-apk-${{ github.ref }}
+  group: android-development-apk-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
-  build-apk:
-    name: Build installable APK
+  build-development-apk:
+    name: Build development client APK
     runs-on: ubuntu-latest
     timeout-minutes: 45
     env:
@@ -67,26 +66,26 @@ jobs:
           npm run typecheck
           npm run lint
 
-      - name: Generate Android project
+      - name: Generate Android development project
         run: npx expo prebuild --platform android --clean --no-install
 
       - name: Set up Gradle cache
         uses: gradle/actions/setup-gradle@v4
 
-      - name: Build release APK
+      - name: Build development APK
         working-directory: android
-        run: ./gradlew assembleRelease --no-daemon --stacktrace
+        run: ./gradlew assembleDebug --no-daemon --stacktrace
 
-      - name: Collect APK
+      - name: Collect development APK
         shell: bash
         run: |
           mkdir -p artifacts
-          cp android/app/build/outputs/apk/release/*.apk artifacts/wish-u-${GITHUB_SHA::7}.apk
+          cp android/app/build/outputs/apk/debug/*.apk artifacts/wish-u-development-${GITHUB_SHA::7}.apk
 
-      - name: Upload APK artifact
+      - name: Upload development APK artifact
         uses: actions/upload-artifact@v4
         with:
-          name: wish-u-android-apk-${{ github.run_number }}
+          name: wish-u-development-apk-${{ github.run_number }}
           path: artifacts/*.apk
           if-no-files-found: error
           retention-days: 14

@@ -1,4 +1,5 @@
 import { createContext, useContext, useEffect, useMemo, useState, type PropsWithChildren } from 'react';
+import * as Linking from 'expo-linking';
 import { AppState, Platform } from 'react-native';
 
 import { getSupabaseClient } from '../../lib/supabase';
@@ -10,11 +11,12 @@ interface AuthContextValue {
   user: AuthUser | null;
   isAuthenticated: boolean;
   isHydrated: boolean;
+  oauthCallbackUrl: string | null;
   signIn: (email: string, password: string) => Promise<AuthUser>;
   signUp: (input: SignUpInput) => Promise<void>;
   verifySignUpCode: (email: string, token: string) => Promise<AuthUser>;
   resendSignUpCode: (email: string) => Promise<void>;
-  signInWithSocial: (provider: SocialAuthProvider) => Promise<AuthUser>;
+  signInWithSocial: (provider: SocialAuthProvider) => Promise<void>;
   completeOAuthCallback: (url: string) => Promise<AuthUser>;
   completeSocialProfile: (input: Pick<UpdateProfileInput, 'name' | 'birthDate' | 'gender'>) => Promise<AuthUser>;
   connectCouple: (partnerCode: string) => Promise<AuthUser>;
@@ -30,6 +32,7 @@ export function AuthProvider({ children }: PropsWithChildren) {
   const [user, setUser] = useState<AuthUser | null>(null);
   const [isAuthenticated, setAuthenticated] = useState(false);
   const [isHydrated, setHydrated] = useState(false);
+  const [oauthCallbackUrl, setOAuthCallbackUrl] = useState<string | null>(null);
 
   useEffect(() => {
     void supabaseAuthService
@@ -43,6 +46,16 @@ export function AuthProvider({ children }: PropsWithChildren) {
         setAuthenticated(false);
       })
       .finally(() => setHydrated(true));
+  }, []);
+
+  useEffect(() => {
+    const captureOAuthUrl = (url: string | null) => {
+      if (url?.startsWith('wishu://auth/callback')) setOAuthCallbackUrl(url);
+    };
+
+    void Linking.getInitialURL().then(captureOAuthUrl);
+    const subscription = Linking.addEventListener('url', ({ url }) => captureOAuthUrl(url));
+    return () => subscription.remove();
   }, []);
 
   useEffect(() => {
@@ -64,6 +77,7 @@ export function AuthProvider({ children }: PropsWithChildren) {
     user,
     isAuthenticated,
     isHydrated,
+    oauthCallbackUrl,
     async signIn(email, password) {
       const nextUser = await supabaseAuthService.signIn(email, password);
       setUser(nextUser);
@@ -83,16 +97,18 @@ export function AuthProvider({ children }: PropsWithChildren) {
       await supabaseAuthService.resendSignUpCode(email);
     },
     async signInWithSocial(provider) {
-      const nextUser = await supabaseAuthService.signInWithSocial(provider);
-      setUser(nextUser);
-      setAuthenticated(true);
-      return nextUser;
+      const callbackUrl = await supabaseAuthService.signInWithSocial(provider);
+      setOAuthCallbackUrl(callbackUrl);
     },
     async completeOAuthCallback(url) {
-      const nextUser = await supabaseAuthService.completeOAuthCallback(url);
-      setUser(nextUser);
-      setAuthenticated(true);
-      return nextUser;
+      try {
+        const nextUser = await supabaseAuthService.completeOAuthCallback(url);
+        setUser(nextUser);
+        setAuthenticated(true);
+        return nextUser;
+      } finally {
+        setOAuthCallbackUrl(null);
+      }
     },
     async completeSocialProfile(input) {
       if (!user) throw new Error('로그인이 필요합니다.');
@@ -131,7 +147,7 @@ export function AuthProvider({ children }: PropsWithChildren) {
       setUser(null);
       setAuthenticated(false);
     },
-  }), [isAuthenticated, isHydrated, user]);
+  }), [isAuthenticated, isHydrated, oauthCallbackUrl, user]);
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }

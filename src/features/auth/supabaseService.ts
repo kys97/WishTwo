@@ -122,7 +122,7 @@ export const supabaseAuthService = {
     if (error) throw error;
     const result = await WebBrowser.openAuthSessionAsync(data.url, redirectTo);
     if (result.type !== 'success') throw new Error('소셜 로그인이 취소되었습니다.');
-    return completeOAuthCallback(result.url);
+    return result.url;
   },
   async completeOAuthCallback(url: string) {
     return completeOAuthCallback(url);

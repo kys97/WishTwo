@@ -31,8 +31,7 @@ export function LoginScreen() {
     setLoading(true);
     setErrorMessage('');
     try {
-      const user = await signInWithSocial(provider);
-      router.replace((!user.profileCompleted ? '/social-profile' : user.isCoupleConnected ? '/home' : '/couple-connect') as Href);
+      await signInWithSocial(provider);
     } catch (error) {
       setErrorMessage(error instanceof Error ? error.message : '소셜 로그인에 실패했습니다.');
     } finally { setLoading(false); }

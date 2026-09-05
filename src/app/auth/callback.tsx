@@ -16,23 +16,35 @@ function getNextRoute(user: AuthUser): Href {
 
 export default function OAuthCallbackRoute() {
   const router = useRouter();
-  const callbackUrl = Linking.useURL();
-  const { completeOAuthCallback } = useAuth();
+  const linkingUrl = Linking.useURL();
+  const { completeOAuthCallback, oauthCallbackUrl } = useAuth();
   const handledUrl = useRef<string | null>(null);
   const [errorMessage, setErrorMessage] = useState('');
 
   useEffect(() => {
     let active = true;
+    const timeout = setTimeout(() => {
+      if (active) setErrorMessage('로그인 응답을 확인하지 못했습니다. 다시 시도해주세요.');
+    }, 15000);
 
     const finishLogin = async () => {
-      const url = callbackUrl ?? await Linking.getInitialURL();
+      const initialUrl = await Linking.getInitialURL();
+      const url = [oauthCallbackUrl, linkingUrl, initialUrl]
+        .find((value) => value?.startsWith('wishu://auth/callback'));
       if (!url || handledUrl.current === url) return;
       handledUrl.current = url;
 
       try {
-        const user = await completeOAuthCallback(url);
+        const user = await Promise.race([
+          completeOAuthCallback(url),
+          new Promise<never>((_, reject) => {
+            setTimeout(() => reject(new Error('로그인 처리 시간이 초과되었습니다. 다시 시도해주세요.')), 15000);
+          }),
+        ]);
+        clearTimeout(timeout);
         if (active) router.replace(getNextRoute(user));
       } catch (error) {
+        clearTimeout(timeout);
         if (active) {
           setErrorMessage(error instanceof Error ? error.message : '소셜 로그인을 완료하지 못했습니다.');
         }
@@ -40,8 +52,11 @@ export default function OAuthCallbackRoute() {
     };
 
     void finishLogin();
-    return () => { active = false; };
-  }, [callbackUrl, completeOAuthCallback, router]);
+    return () => {
+      active = false;
+      clearTimeout(timeout);
+    };
+  }, [completeOAuthCallback, linkingUrl, oauthCallbackUrl, router]);
 
   return (
     <ScreenContainer edges={['top', 'bottom', 'left', 'right']} contentContainerStyle={styles.container}>

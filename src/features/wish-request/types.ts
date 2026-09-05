@@ -1,0 +1,1 @@
+export const WISH_CONTENT_MAX_LENGTH = 100;

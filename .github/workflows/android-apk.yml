@@ -1,0 +1,91 @@
+name: Build Android APK
+
+on:
+  push:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: android-apk-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build-apk:
+    name: Build installable APK
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    env:
+      CI: '1'
+      EXPO_PUBLIC_SUPABASE_URL: ${{ secrets.EXPO_PUBLIC_SUPABASE_URL }}
+      EXPO_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.EXPO_PUBLIC_SUPABASE_ANON_KEY }}
+      GOOGLE_SERVICES_JSON: ${{ github.workspace }}/.github-secrets/google-services.json
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+          cache: gradle
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Validate required secrets
+        shell: bash
+        env:
+          GOOGLE_SERVICES_JSON_BASE64: ${{ secrets.GOOGLE_SERVICES_JSON_BASE64 }}
+        run: |
+          test -n "$EXPO_PUBLIC_SUPABASE_URL" || { echo "Missing EXPO_PUBLIC_SUPABASE_URL secret"; exit 1; }
+          test -n "$EXPO_PUBLIC_SUPABASE_ANON_KEY" || { echo "Missing EXPO_PUBLIC_SUPABASE_ANON_KEY secret"; exit 1; }
+          test -n "$GOOGLE_SERVICES_JSON_BASE64" || { echo "Missing GOOGLE_SERVICES_JSON_BASE64 secret"; exit 1; }
+
+      - name: Restore Firebase Android configuration
+        shell: bash
+        env:
+          GOOGLE_SERVICES_JSON_BASE64: ${{ secrets.GOOGLE_SERVICES_JSON_BASE64 }}
+        run: |
+          mkdir -p "$(dirname "$GOOGLE_SERVICES_JSON")"
+          printf '%s' "$GOOGLE_SERVICES_JSON_BASE64" | base64 --decode > "$GOOGLE_SERVICES_JSON"
+          node -e "const f=require(process.env.GOOGLE_SERVICES_JSON); if(f.client?.[0]?.client_info?.android_client_info?.package_name !== 'com.wishu.couplewish') throw new Error('google-services.json package_name must be com.wishu.couplewish')"
+
+      - name: Install JavaScript dependencies
+        run: npm ci --include=dev
+
+      - name: Validate TypeScript and lint
+        run: |
+          npm run typecheck
+          npm run lint
+
+      - name: Generate Android project
+        run: npx expo prebuild --platform android --clean --no-install
+
+      - name: Build release APK
+        working-directory: android
+        run: ./gradlew assembleRelease --no-daemon --stacktrace
+
+      - name: Collect APK
+        shell: bash
+        run: |
+          mkdir -p artifacts
+          cp android/app/build/outputs/apk/release/*.apk artifacts/wish-u-${GITHUB_SHA::7}.apk
+
+      - name: Upload APK artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: wish-u-android-apk-${{ github.run_number }}
+          path: artifacts/*.apk
+          if-no-files-found: error
+          retention-days: 14
+

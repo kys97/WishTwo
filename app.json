@@ -1,0 +1,67 @@
+{
+  "expo": {
+    "name": "Wish-U",
+    "slug": "couple-wish-app",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/images/icon.png",
+    "scheme": "wishu",
+    "userInterfaceStyle": "light",
+    "ios": {
+      "icon": "./assets/expo.icon"
+    },
+    "android": {
+      "package": "com.wishu.couplewish",
+      "versionCode": 1,
+      "adaptiveIcon": {
+        "backgroundColor": "#E6F4FE",
+        "foregroundImage": "./assets/images/android-icon-foreground.png",
+        "backgroundImage": "./assets/images/android-icon-background.png",
+        "monochromeImage": "./assets/images/android-icon-monochrome.png"
+      },
+      "predictiveBackGestureEnabled": false
+    },
+    "web": {
+      "output": "static",
+      "favicon": "./assets/images/favicon.png"
+    },
+    "plugins": [
+      "expo-router",
+      [
+        "expo-splash-screen",
+        {
+          "backgroundColor": "#F8F7FC",
+          "image": "./assets/images/splash-icon.png",
+          "imageWidth": 76
+        }
+      ],
+      "@react-native-community/datetimepicker",
+      "expo-font",
+      "expo-web-browser",
+      [
+        "expo-notifications",
+        {
+          "color": "#6D5BD0",
+          "defaultChannel": "wish-reminders"
+        }
+      ],
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "추억 기록이나 프로필에 사진을 추가하려면 사진 접근 권한이 필요합니다."
+        }
+      ]
+    ],
+    "experiments": {
+      "typedRoutes": true,
+      "reactCompiler": true
+    },
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "3c987868-09fe-4328-b3ec-152f2545faaf"
+      }
+    },
+    "owner": "admin-ys"
+  }
+}

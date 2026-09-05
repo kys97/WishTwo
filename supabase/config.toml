@@ -1,0 +1,8 @@
+[functions.dispatch-wish-notifications]
+verify_jwt = false
+
+[functions.delete-memory]
+verify_jwt = true
+
+[functions.delete-account]
+verify_jwt = true

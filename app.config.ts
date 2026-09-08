@@ -20,7 +20,7 @@ export default ({ config }: ConfigContext): ExpoConfig => {
           data: [
             {
               scheme: 'https',
-              host: 'wishtwo.vercel.app',
+              host: 'wish-two-lovat.vercel.app',
               pathPrefix: '/connect',
             },
           ],

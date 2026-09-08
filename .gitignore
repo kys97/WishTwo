@@ -47,3 +47,5 @@ example
 # generated native folders
 /ios
 /android
+wish-two-development.keystore
+wish-two-development.keystore.base64

@@ -44,7 +44,7 @@ export function CoupleConnectScreen() {
 
   const shareMyCode = async () => {
     if (!user?.connectionCode) return;
-    const url = `https://wishtwo.vercel.app/connect?code=${encodeURIComponent(user.connectionCode)}`;
+    const url = `https://wish-two-lovat.vercel.app/connect?code=${encodeURIComponent(user.connectionCode)}`;
     await Share.share({ message: `Wish Two에서 저와 연결해주세요!\n아래 링크를 누르면 연결할 수 있어요.\n${url}`, url });
   };
 

@@ -72,9 +72,66 @@ jobs:
       - name: Set up Gradle cache
         uses: gradle/actions/setup-gradle@v4
 
+      - name: Configure fixed development signing
+        shell: bash
+        env:
+          WISH_TWO_DEV_KEYSTORE_BASE64: ${{ secrets.WISH_TWO_DEV_KEYSTORE_BASE64 }}
+          WISH_TWO_DEV_KEYSTORE_PASSWORD: ${{ secrets.WISH_TWO_DEV_KEYSTORE_PASSWORD }}
+          WISH_TWO_DEV_KEY_ALIAS: ${{ secrets.WISH_TWO_DEV_KEY_ALIAS }}
+          WISH_TWO_DEV_KEY_PASSWORD: ${{ secrets.WISH_TWO_DEV_KEY_PASSWORD }}
+        run: |
+          set +x
+          umask 077
+          node <<'NODE'
+          const fs = require('node:fs');
+          const path = require('node:path');
+          for (const name of ['WISH_TWO_DEV_KEYSTORE_BASE64', 'WISH_TWO_DEV_KEYSTORE_PASSWORD', 'WISH_TWO_DEV_KEY_ALIAS', 'WISH_TWO_DEV_KEY_PASSWORD']) {
+            if (!process.env[name]) throw new Error(`Missing ${name} secret`);
+          }
+          fs.writeFileSync(path.join(process.env.RUNNER_TEMP, 'wish-two-development.keystore'), Buffer.from(process.env.WISH_TWO_DEV_KEYSTORE_BASE64, 'base64'), { mode: 0o600 });
+          fs.appendFileSync('android/app/build.gradle', `
+          android {
+              signingConfigs {
+                  debug {
+                      storeFile file(System.getenv('WISH_TWO_DEV_KEYSTORE_PATH'))
+                      storePassword System.getenv('WISH_TWO_DEV_KEYSTORE_PASSWORD')
+                      keyAlias System.getenv('WISH_TWO_DEV_KEY_ALIAS')
+                      keyPassword System.getenv('WISH_TWO_DEV_KEY_PASSWORD')
+                  }
+              }
+              buildTypes {
+                  debug {
+                      signingConfig signingConfigs.debug
+                  }
+              }
+          }
+          `);
+          NODE
+
       - name: Build development APK
         working-directory: android
-        run: ./gradlew assembleDebug --no-daemon --stacktrace
+        env:
+          WISH_TWO_DEV_KEYSTORE_PATH: ${{ runner.temp }}/wish-two-development.keystore
+          WISH_TWO_DEV_KEYSTORE_PASSWORD: ${{ secrets.WISH_TWO_DEV_KEYSTORE_PASSWORD }}
+          WISH_TWO_DEV_KEY_ALIAS: ${{ secrets.WISH_TWO_DEV_KEY_ALIAS }}
+          WISH_TWO_DEV_KEY_PASSWORD: ${{ secrets.WISH_TWO_DEV_KEY_PASSWORD }}
+        run: ./gradlew assembleDebug --no-daemon
+
+      - name: Verify APK signing certificate
+        shell: bash
+        run: |
+          apksigner_path=$(find "$ANDROID_HOME/build-tools" -name apksigner -type f | sort -V | tail -n 1)
+          test -n "$apksigner_path" || { echo 'apksigner not found'; exit 1; }
+          expected='0d2b3e123aa2ac43ed8cc23d66a886224c6c15a637aac8ba1a4964036709614c'
+          shopt -s nullglob
+          apks=(android/app/build/outputs/apk/debug/*.apk)
+          test "${#apks[@]}" -gt 0 || { echo 'Development APK not found'; exit 1; }
+          for apk in "${apks[@]}"; do
+            report=$("$apksigner_path" verify --print-certs "$apk")
+            actual=$(printf '%s\n' "$report" | sed -n 's/^Signer #1 certificate SHA-256 digest: //p' | tr -d ':\r ' | tr '[:upper:]' '[:lower:]')
+            test "$actual" = "$expected" || { echo 'APK signing certificate SHA-256 mismatch'; exit 1; }
+          done
+          echo 'APK signing certificate SHA-256 verified.'
 
       - name: Collect development APK
         shell: bash
@@ -89,3 +146,8 @@ jobs:
           path: artifacts/*.apk
           if-no-files-found: error
           retention-days: 14
+
+      - name: Remove development keystore
+        if: always()
+        shell: bash
+        run: rm -f -- "$RUNNER_TEMP/wish-two-development.keystore"

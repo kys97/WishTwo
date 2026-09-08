@@ -17,6 +17,7 @@ jobs:
     timeout-minutes: 45
     env:
       CI: '1'
+      EXPECTED_DEV_CERT_SHA256: '0D:2B:3E:12:3A:A2:AC:43:ED:8C:C2:3D:66:A8:86:22:4C:6C:15:A6:37:AA:C8:BA:1A:49:64:03:67:09:61:4C'
       EXPO_PUBLIC_SUPABASE_URL: ${{ secrets.EXPO_PUBLIC_SUPABASE_URL }}
       EXPO_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.EXPO_PUBLIC_SUPABASE_ANON_KEY }}
       GOOGLE_SERVICES_JSON: ${{ github.workspace }}/.github-secrets/google-services.json
@@ -85,14 +86,31 @@ jobs:
           node <<'NODE'
           const fs = require('node:fs');
           const path = require('node:path');
+          const { spawnSync } = require('node:child_process');
           for (const name of ['WISH_TWO_DEV_KEYSTORE_BASE64', 'WISH_TWO_DEV_KEYSTORE_PASSWORD', 'WISH_TWO_DEV_KEY_ALIAS', 'WISH_TWO_DEV_KEY_PASSWORD']) {
             if (!process.env[name]) throw new Error(`Missing ${name} secret`);
           }
           fs.writeFileSync(path.join(process.env.RUNNER_TEMP, 'wish-two-development.keystore'), Buffer.from(process.env.WISH_TWO_DEV_KEYSTORE_BASE64, 'base64'), { mode: 0o600 });
+          const certificate = spawnSync('keytool', [
+            '-J-Duser.language=en', '-J-Duser.country=US', '-list', '-v',
+            '-keystore', path.join(process.env.RUNNER_TEMP, 'wish-two-development.keystore'),
+            '-storepass:env', 'WISH_TWO_DEV_KEYSTORE_PASSWORD',
+            '-alias', process.env.WISH_TWO_DEV_KEY_ALIAS,
+          ], { encoding: 'utf8' });
+          const fingerprint = certificate.stdout?.match(/SHA256:\s*([A-Fa-f0-9:]+)/)?.[1] ?? '';
+          const normalize = (value) => value.replace(/:/g, '').toUpperCase();
+          console.log(`Expected SHA-256: ${process.env.EXPECTED_DEV_CERT_SHA256}`);
+          console.log(`Keystore SHA-256: ${fingerprint || '(unavailable)'}`);
+          if (certificate.status !== 0 || !/^([A-Fa-f0-9]{2}:){31}[A-Fa-f0-9]{2}$/.test(fingerprint)) {
+            throw new Error('Cannot read keystore certificate. Check keystore, password and alias secrets.');
+          }
+          if (normalize(fingerprint) !== normalize(process.env.EXPECTED_DEV_CERT_SHA256)) {
+            throw new Error('Keystore certificate SHA-256 mismatch; build stopped.');
+          }
           fs.appendFileSync('android/app/build.gradle', `
           android {
               signingConfigs {
-                  debug {
+                  wishTwoDevelopment {
                       storeFile file(System.getenv('WISH_TWO_DEV_KEYSTORE_PATH'))
                       storePassword System.getenv('WISH_TWO_DEV_KEYSTORE_PASSWORD')
                       keyAlias System.getenv('WISH_TWO_DEV_KEY_ALIAS')
@@ -101,7 +119,7 @@ jobs:
               }
               buildTypes {
                   debug {
-                      signingConfig signingConfigs.debug
+                      signingConfig signingConfigs.wishTwoDevelopment
                   }
               }
           }
@@ -122,13 +140,15 @@ jobs:
         run: |
           apksigner_path=$(find "$ANDROID_HOME/build-tools" -name apksigner -type f | sort -V | tail -n 1)
           test -n "$apksigner_path" || { echo 'apksigner not found'; exit 1; }
-          expected='0d2b3e123aa2ac43ed8cc23d66a886224c6c15a637aac8ba1a4964036709614c'
+          expected=$(printf '%s' "$EXPECTED_DEV_CERT_SHA256" | tr -d ':' | tr '[:upper:]' '[:lower:]')
+          printf 'Expected SHA-256: %s\n' "$EXPECTED_DEV_CERT_SHA256"
           shopt -s nullglob
           apks=(android/app/build/outputs/apk/debug/*.apk)
           test "${#apks[@]}" -gt 0 || { echo 'Development APK not found'; exit 1; }
           for apk in "${apks[@]}"; do
             report=$("$apksigner_path" verify --print-certs "$apk")
             actual=$(printf '%s\n' "$report" | sed -n 's/^Signer #1 certificate SHA-256 digest: //p' | tr -d ':\r ' | tr '[:upper:]' '[:lower:]')
+            printf 'APK SHA-256: %s\n' "$actual"
             test "$actual" = "$expected" || { echo 'APK signing certificate SHA-256 mismatch'; exit 1; }
           done
           echo 'APK signing certificate SHA-256 verified.'

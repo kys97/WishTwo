@@ -1,0 +1,7 @@
+{
+  "name": "wish-two-connect-page",
+  "private": true,
+  "scripts": {
+    "build": "node scripts/build.mjs"
+  }
+}

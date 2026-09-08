@@ -11,6 +11,21 @@ export default ({ config }: ConfigContext): ExpoConfig => {
       ...config.android,
       package: 'com.wishu.couplewish',
       versionCode: 1,
+      intentFilters: [
+        ...(config.android?.intentFilters ?? []),
+        {
+          action: 'VIEW',
+          autoVerify: true,
+          category: ['BROWSABLE', 'DEFAULT'],
+          data: [
+            {
+              scheme: 'https',
+              host: 'wishtwo.vercel.app',
+              pathPrefix: '/connect',
+            },
+          ],
+        },
+      ],
       ...(googleServicesFile ? { googleServicesFile } : {}),
     },
   };

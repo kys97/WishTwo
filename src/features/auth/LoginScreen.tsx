@@ -10,7 +10,7 @@ import { SocialContinueButtons } from './components/SocialContinueButtons';
 
 export function LoginScreen() {
   const router = useRouter();
-  const { signIn, signInWithSocial } = useAuth();
+  const { pendingCoupleCode, signIn, signInWithSocial } = useAuth();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
@@ -22,7 +22,7 @@ export function LoginScreen() {
     setErrorMessage('');
     try {
       const user = await signIn(email.trim(), password);
-      router.replace((!user.profileCompleted ? '/social-profile' : user.isCoupleConnected ? '/home' : '/couple-connect') as Href);
+      router.replace((!user.profileCompleted ? '/social-profile' : pendingCoupleCode ? { pathname: '/couple-connect', params: { code: pendingCoupleCode } } : user.isCoupleConnected ? '/home' : '/couple-connect') as Href);
     } catch (error) {
       setErrorMessage(error instanceof Error ? error.message : '로그인에 실패했습니다.');
     } finally { setLoading(false); }

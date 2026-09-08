@@ -11,7 +11,7 @@ export function VerifyEmailScreen() {
   const router = useRouter();
   const params = useLocalSearchParams<{ email?: string | string[] }>();
   const email = Array.isArray(params.email) ? params.email[0] : params.email;
-  const { resendSignUpCode, verifySignUpCode } = useAuth();
+  const { pendingCoupleCode, resendSignUpCode, verifySignUpCode } = useAuth();
   const [code, setCode] = useState('');
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState('');
@@ -21,7 +21,7 @@ export function VerifyEmailScreen() {
     setLoading(true); setMessage('');
     try {
       const user = await verifySignUpCode(email, code.trim());
-      router.replace(user.isCoupleConnected ? '/home' : '/couple-connect');
+      router.replace(pendingCoupleCode ? { pathname: '/couple-connect', params: { code: pendingCoupleCode } } : user.isCoupleConnected ? '/home' : '/couple-connect');
     } catch (error) { setMessage(error instanceof Error ? error.message : '인증번호를 확인하지 못했습니다.'); }
     finally { setLoading(false); }
   };

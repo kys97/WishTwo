@@ -6,18 +6,22 @@ import { getSupabaseClient } from '../../lib/supabase';
 import { supabaseAuthService } from './supabaseService';
 import type { AuthUser, SignUpInput, SocialAuthProvider, UpdateProfileInput } from './types';
 import { deactivatePushTokenAsync } from '../notifications/notificationService';
+import { loadPendingCoupleCode, removePendingCoupleCode, storePendingCoupleCode } from './pendingCoupleCode';
 
 interface AuthContextValue {
   user: AuthUser | null;
   isAuthenticated: boolean;
   isHydrated: boolean;
   oauthCallbackUrl: string | null;
+  pendingCoupleCode: string | null;
   signIn: (email: string, password: string) => Promise<AuthUser>;
   signUp: (input: SignUpInput) => Promise<void>;
   verifySignUpCode: (email: string, token: string) => Promise<AuthUser>;
   resendSignUpCode: (email: string) => Promise<void>;
   signInWithSocial: (provider: SocialAuthProvider) => Promise<void>;
   completeOAuthCallback: (url: string) => Promise<AuthUser>;
+  savePendingCoupleCode: (code: string) => Promise<void>;
+  clearPendingCoupleCode: () => Promise<void>;
   completeSocialProfile: (input: Pick<UpdateProfileInput, 'name' | 'birthDate' | 'gender'>) => Promise<AuthUser>;
   connectCouple: (partnerCode: string) => Promise<AuthUser>;
   updateProfile: (input: UpdateProfileInput) => Promise<AuthUser>;
@@ -33,13 +37,14 @@ export function AuthProvider({ children }: PropsWithChildren) {
   const [isAuthenticated, setAuthenticated] = useState(false);
   const [isHydrated, setHydrated] = useState(false);
   const [oauthCallbackUrl, setOAuthCallbackUrl] = useState<string | null>(null);
+  const [pendingCoupleCode, setPendingCoupleCode] = useState<string | null>(null);
 
   useEffect(() => {
-    void supabaseAuthService
-      .loadCurrentUser()
-      .then((restoredUser) => {
+    void Promise.all([supabaseAuthService.loadCurrentUser(), loadPendingCoupleCode()])
+      .then(([restoredUser, restoredCode]) => {
         setUser(restoredUser);
         setAuthenticated(Boolean(restoredUser));
+        setPendingCoupleCode(restoredCode);
       })
       .catch(() => {
         setUser(null);
@@ -78,6 +83,7 @@ export function AuthProvider({ children }: PropsWithChildren) {
     isAuthenticated,
     isHydrated,
     oauthCallbackUrl,
+    pendingCoupleCode,
     async signIn(email, password) {
       const nextUser = await supabaseAuthService.signIn(email, password);
       setUser(nextUser);
@@ -109,6 +115,13 @@ export function AuthProvider({ children }: PropsWithChildren) {
       } finally {
         setOAuthCallbackUrl(null);
       }
+    },
+    async savePendingCoupleCode(code) {
+      setPendingCoupleCode(await storePendingCoupleCode(code));
+    },
+    async clearPendingCoupleCode() {
+      await removePendingCoupleCode();
+      setPendingCoupleCode(null);
     },
     async completeSocialProfile(input) {
       if (!user) throw new Error('로그인이 필요합니다.');
@@ -147,7 +160,7 @@ export function AuthProvider({ children }: PropsWithChildren) {
       setUser(null);
       setAuthenticated(false);
     },
-  }), [isAuthenticated, isHydrated, oauthCallbackUrl, user]);
+  }), [isAuthenticated, isHydrated, oauthCallbackUrl, pendingCoupleCode, user]);
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }

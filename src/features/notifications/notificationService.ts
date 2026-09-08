@@ -29,7 +29,6 @@ export async function registerPushTokenAsync() {
       importance: Notifications.AndroidImportance.HIGH,
       vibrationPattern: [0, 250, 250, 250],
       lightColor: '#6D5BD0',
-      sound: 'default',
     });
   }
 

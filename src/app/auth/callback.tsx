@@ -8,8 +8,9 @@ import { useAuth } from '../../features/auth';
 import type { AuthUser } from '../../features/auth';
 import { colors, spacing, typography } from '../../theme';
 
-function getNextRoute(user: AuthUser): Href {
+function getNextRoute(user: AuthUser, pendingCoupleCode: string | null): Href {
   if (!user.profileCompleted) return '/social-profile' as Href;
+  if (pendingCoupleCode) return { pathname: '/couple-connect', params: { code: pendingCoupleCode } };
   if (!user.isCoupleConnected) return '/couple-connect';
   return '/home';
 }
@@ -17,7 +18,7 @@ function getNextRoute(user: AuthUser): Href {
 export default function OAuthCallbackRoute() {
   const router = useRouter();
   const linkingUrl = Linking.useURL();
-  const { completeOAuthCallback, oauthCallbackUrl } = useAuth();
+  const { completeOAuthCallback, oauthCallbackUrl, pendingCoupleCode } = useAuth();
   const handledUrl = useRef<string | null>(null);
   const [errorMessage, setErrorMessage] = useState('');
 
@@ -42,7 +43,7 @@ export default function OAuthCallbackRoute() {
           }),
         ]);
         clearTimeout(timeout);
-        if (active) router.replace(getNextRoute(user));
+        if (active) router.replace(getNextRoute(user, pendingCoupleCode));
       } catch (error) {
         clearTimeout(timeout);
         if (active) {
@@ -56,7 +57,7 @@ export default function OAuthCallbackRoute() {
       active = false;
       clearTimeout(timeout);
     };
-  }, [completeOAuthCallback, linkingUrl, oauthCallbackUrl, router]);
+  }, [completeOAuthCallback, linkingUrl, oauthCallbackUrl, pendingCoupleCode, router]);
 
   return (
     <ScreenContainer edges={['top', 'bottom', 'left', 'right']} contentContainerStyle={styles.container}>

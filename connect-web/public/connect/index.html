@@ -1,0 +1,33 @@
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Wish Two 커플 연결</title>
+    <style>
+      body { margin: 0; background: #f8f7fc; color: #24212f; font-family: system-ui, sans-serif; }
+      main { box-sizing: border-box; min-height: 100vh; display: grid; place-content: center; gap: 16px; padding: 24px; text-align: center; }
+      a { display: block; padding: 16px 24px; border-radius: 12px; background: #6d5bd0; color: #fff; font-weight: 700; text-decoration: none; }
+      p { margin: 0; color: #686376; line-height: 1.6; }
+    </style>
+  </head>
+  <body>
+    <main>
+      <h1>Wish Two 커플 연결</h1>
+      <p id="message">아래 버튼을 눌러 Wish Two에서 연결을 계속해주세요.</p>
+      <a id="open-app" href="wishu://couple-connect">Wish Two 앱 열기</a>
+    </main>
+    <script>
+      const code = new URLSearchParams(location.search).get('code')?.trim().toUpperCase() ?? '';
+      const valid = /^WISH-[A-Z0-9]{8}$/.test(code);
+      const button = document.getElementById('open-app');
+      const message = document.getElementById('message');
+      if (valid) {
+        button.href = `wishu://couple-connect?code=${encodeURIComponent(code)}`;
+      } else {
+        button.hidden = true;
+        message.textContent = '올바르지 않은 연결 링크입니다.';
+      }
+    </script>
+  </body>
+</html>
